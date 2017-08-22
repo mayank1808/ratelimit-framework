@@ -210,7 +210,6 @@
 		</pluginManagement>
 	</build>
 	<modules>
-		<module>key-value-store</module>
 		<module>ratelimit</module>
 		<module>repository</module>
 		<module>jpa</module>

@@ -39,7 +39,8 @@ public class RatelimitInterceptor extends HandlerInterceptorAdapter {
 
 		if (genericResponse.getCode().equals("429")) {
 			response.setStatus(429, "RATE_LIMIT_EXCEEDED");
-			throw new Exception("RATE_LIMIT_EXCEEDED");
+			response.getWriter().write("RATE_LIMIT_EXCEEDED " + genericResponse.getMessage());
+			return false;
 		}
 
 		return true;
@@ -48,13 +49,6 @@ public class RatelimitInterceptor extends HandlerInterceptorAdapter {
 	// after the handler is executed
 	public void postHandle(HttpServletRequest request, HttpServletResponse response, Object handler,
 			ModelAndView modelAndView) throws Exception {
-
-		// long startTime = (Long) request.getAttribute("startTime");
-
-		long endTime = System.currentTimeMillis();
-
-		System.out.println("End Time " + endTime);
-		logger.info("End Time " + endTime);
 
 	}
 }

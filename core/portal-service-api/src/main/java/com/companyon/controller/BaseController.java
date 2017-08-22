@@ -18,7 +18,7 @@ public class BaseController {
 	IUserDetailsDao userDao;
 
 	@Autowired
-	IRateLimitService rateLimit;
+	IRateLimitService rateLimitImpl;
 
 	private static int counter = 0;
 	private static final String VIEW_INDEX = "index";

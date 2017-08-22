@@ -43,31 +43,11 @@ public class DatastoreHandler extends AbstractHandler {
 		String uri = request.getHeader("uri");
 
 		GenericResponse gr = processAPICall(company, method, uri);
-		if (gr != null) {
-			if (gr.getCode().equals("200")) {
-				response.setStatus(200);
-			} else {
-				response.setStatus(429);
-			}
-		}
 
-		System.out.println(gr.toString());
 		response.setContentType("text/html;charset=utf-8");
-		response.setStatus(Integer.valueOf(gr.getCode()));
+		response.setStatus(Integer.valueOf(gr.getCode()), gr.getMessage());
 		baseRequest.setHandled(true);
 		response.getWriter().println("Completed");
-
-		/*		*/
-
-		/*
-		 * String jsonString = IOUtils.toString(request.getInputStream());
-		 * RateLimitObject myObject = new Gson().fromJson(jsonString,
-		 * RateLimitObject.class);
-		 * 
-		 * RateLimitService.clientMap.put(myObject.getClientId(),
-		 * myObject.getRateLimit());
-		 */
-
 	}
 
 	public GenericResponse processAPICall(String company, String method, String uri) {

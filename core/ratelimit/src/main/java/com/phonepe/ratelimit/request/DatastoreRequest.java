@@ -44,10 +44,10 @@ public class DatastoreRequest implements Callable<GenericResponse> {
 				HttpClient client = new DefaultHttpClient();
 				HttpGet request = new HttpGet(url);
 
-				// add request header
 				request.addHeader("company", company);
 				request.addHeader("method", method);
 				request.addHeader("uri", uri);
+
 				HttpResponse response = client.execute(request);
 				if (response.getStatusLine().getStatusCode() != 200) {
 					return new GenericResponse("429", response.getStatusLine().getReasonPhrase());

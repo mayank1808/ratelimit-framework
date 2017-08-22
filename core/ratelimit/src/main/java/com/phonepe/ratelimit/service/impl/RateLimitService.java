@@ -4,6 +4,7 @@
 package com.phonepe.ratelimit.service.impl;
 
 import java.util.HashSet;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -59,11 +60,6 @@ public class RateLimitService implements IRateLimitService {
 
 		rateLimit.setClientLimit(limit);
 
-		DatastoreHandler.timeUnitMap.put(company + "_" + TimeUnit.HOUR.toString(), new LinkedBlockingQueue<Long>(100));
-		DatastoreHandler.timeUnitMap.put(company + "_" + TimeUnit.WEEK.toString(), new LinkedBlockingQueue<Long>(200));
-		DatastoreHandler.timeUnitMap.put(company + "_" + TimeUnit.MONTH.toString(),
-				new LinkedBlockingQueue<Long>(10000));
-
 		Limit limit2 = new Limit();
 
 		limit2.getDurationMap().put(TimeUnit.SECOND, 10);
@@ -72,21 +68,7 @@ public class RateLimitService implements IRateLimitService {
 
 		rateLimit.getLimits().put(company + "_GET", limit2);
 
-		DatastoreHandler.timeUnitMap.put(company + "_GET_" + TimeUnit.SECOND.toString(),
-				new LinkedBlockingQueue<Long>(10));
-		DatastoreHandler.timeUnitMap.put(company + "_GET_" + TimeUnit.MINUTE.toString(),
-				new LinkedBlockingQueue<Long>(20));
-		DatastoreHandler.timeUnitMap.put(company + "_GET_" + TimeUnit.WEEK.toString(),
-				new LinkedBlockingQueue<Long>(700));
-
 		rateLimit.getLimits().put(company + "_/pay", limit2);
-
-		DatastoreHandler.timeUnitMap.put(company + "_/pay_" + TimeUnit.SECOND.toString(),
-				new LinkedBlockingQueue<Long>(10));
-		DatastoreHandler.timeUnitMap.put(company + "_/pay_" + TimeUnit.MINUTE.toString(),
-				new LinkedBlockingQueue<Long>(20));
-		DatastoreHandler.timeUnitMap.put(company + "_/pay_" + TimeUnit.WEEK.toString(),
-				new LinkedBlockingQueue<Long>(700));
 
 		Limit limit3 = new Limit();
 
@@ -97,27 +79,9 @@ public class RateLimitService implements IRateLimitService {
 
 		rateLimit.getLimits().put(company + "_POST", limit3);
 
-		DatastoreHandler.timeUnitMap.put(company + "_POST_" + TimeUnit.SECOND.toString(),
-				new LinkedBlockingQueue<Long>(20));
-		DatastoreHandler.timeUnitMap.put(company + "_POST_" + TimeUnit.HOUR.toString(),
-				new LinkedBlockingQueue<Long>(60));
-		DatastoreHandler.timeUnitMap.put(company + "_POST_" + TimeUnit.WEEK.toString(),
-				new LinkedBlockingQueue<Long>(900));
-		DatastoreHandler.timeUnitMap.put(company + "_POST_" + TimeUnit.MONTH.toString(),
-				new LinkedBlockingQueue<Long>(1000));
-
 		rateLimit.getLimits().put(company + "_/status", limit3);
 
-		DatastoreHandler.timeUnitMap.put(company + "_/status_" + TimeUnit.SECOND.toString(),
-				new LinkedBlockingQueue<Long>(20));
-		DatastoreHandler.timeUnitMap.put(company + "_/status_" + TimeUnit.HOUR.toString(),
-				new LinkedBlockingQueue<Long>(60));
-		DatastoreHandler.timeUnitMap.put(company + "_/status_" + TimeUnit.WEEK.toString(),
-				new LinkedBlockingQueue<Long>(900));
-		DatastoreHandler.timeUnitMap.put(company + "_/status_" + TimeUnit.MONTH.toString(),
-				new LinkedBlockingQueue<Long>(1000));
-
-		DatastoreHandler.clientMap.put(company, rateLimit);
+		addRateLimit(company, rateLimit);
 
 		DatastoreHandler.timeConversionMap.put(TimeUnit.SECOND, 1000L);
 		DatastoreHandler.timeConversionMap.put(TimeUnit.MINUTE, 60000L);
@@ -133,11 +97,31 @@ public class RateLimitService implements IRateLimitService {
 
 	public void addRateLimit(String company, RateLimit rateLimit) {
 
+		Limit limit = rateLimit.getClientLimit();
+		if (limit != null && limit.getDurationMap() != null) {
+			for (Entry<TimeUnit, Integer> timeUnit : limit.getDurationMap().entrySet()) {
+				DatastoreHandler.timeUnitMap.put(company + "_" + timeUnit.getKey().toString(),
+						new LinkedBlockingQueue<Long>(timeUnit.getValue()));
+			}
+		}
+
+		if (rateLimit.getLimits() != null) {
+			for (Entry<String, Limit> limitMap : rateLimit.getLimits().entrySet()) {
+				if (limitMap.getValue().getDurationMap() != null) {
+					for (Entry<TimeUnit, Integer> limitMapUnit : limitMap.getValue().getDurationMap().entrySet()) {
+						DatastoreHandler.timeUnitMap.put(limitMap.getKey() + "_" + limitMapUnit.getKey().toString(),
+								new LinkedBlockingQueue<Long>(limitMapUnit.getValue()));
+					}
+				}
+			}
+		}
+
+		DatastoreHandler.clientMap.put(company, rateLimit);
+
 	}
 
 	public GenericResponse processAPICall(String company, String method, String uri)
 			throws InterruptedException, ExecutionException {
-		System.out.println("processing API call");
 		Callable<GenericResponse> callable = new DatastoreRequest(company, method, uri, hosts);
 		Future<GenericResponse> future = executor.submit(callable);
 		return future.get();
