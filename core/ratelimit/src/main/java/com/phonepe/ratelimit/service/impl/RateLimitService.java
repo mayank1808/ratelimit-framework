@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import javax.annotation.PostConstruct;
@@ -19,6 +20,7 @@ import com.phonepe.ratelimit.cache.IMemcachedService;
 import com.phonepe.ratelimit.model.Limit;
 import com.phonepe.ratelimit.model.RateLimit;
 import com.phonepe.ratelimit.model.TimeUnit;
+import com.phonepe.ratelimit.multithreading.DataCleaner;
 import com.phonepe.ratelimit.response.GenericResponse;
 import com.phonepe.ratelimit.service.IRateLimitService;
 
@@ -110,8 +112,6 @@ public class RateLimitService implements IRateLimitService {
 
 	public GenericResponse processAPICall(String company, String method, String uri) {
 
-		System.out.println("Processing call");
-
 		try {
 			RateLimit rateLimit = (RateLimit) memCachedService.get(company);
 			if (rateLimit != null) {
@@ -135,7 +135,6 @@ public class RateLimitService implements IRateLimitService {
 
 	@SuppressWarnings("unchecked")
 	private void processClientLimit(String key, Limit limit) throws Exception {
-		System.out.println("Processing client limit " + key + " and " + limit.toString());
 		if (limit != null) {
 			for (Entry<TimeUnit, Integer> entryMap : limit.getDurationMap().entrySet()) {
 
@@ -169,18 +168,8 @@ public class RateLimitService implements IRateLimitService {
 	private void removeOldEntries(String key, TimeUnit timeunit) throws Exception {
 
 		System.out.println("Started a thread to clear " + timeunit.toString() + " map for " + key);
-		LinkedBlockingQueue<Long> queue = (LinkedBlockingQueue<Long>) memCachedService
-				.get(key + "_" + timeunit.toString());
-		boolean flag = false;
-		while (!queue.isEmpty() && queue.peek() < System.currentTimeMillis() - timeConversionMap.get(timeunit)) {
-			flag = true;
-			queue.remove();
-		}
-		if (!flag)
-			throw new Exception("Per " + timeunit.toString() + " rate Limit Exceeded for key " + key);
-		else {
-			queue.add(System.currentTimeMillis());
-			memCachedService.replace(key + "_" + timeunit.toString(), queue);
-		}
+		Future<Boolean> result = executor.submit(new DataCleaner(key, timeunit, memCachedService));
+		if (!result.get())
+			throw new Exception("Per " + timeunit.toString() + " ratelimit exceeded for key " + key);
 	}
 }
