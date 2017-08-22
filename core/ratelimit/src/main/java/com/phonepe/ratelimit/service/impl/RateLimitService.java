@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.phonepe.ratelimit.cache.IMemcachedService;
+import com.phonepe.ratelimit.exception.RateLimitExceededException;
 import com.phonepe.ratelimit.model.Limit;
 import com.phonepe.ratelimit.model.RateLimit;
 import com.phonepe.ratelimit.model.TimeUnit;
@@ -110,9 +111,7 @@ public class RateLimitService implements IRateLimitService {
 					if (System.currentTimeMillis() - timeConversionMap.get(entryMap.getKey()) > queue.peek()) {
 						removeOldEntries(key, entryMap.getKey());
 					} else {
-						System.out
-								.println("Per " + entryMap.getKey().toString() + " rate Limit Exceeded for key " + key);
-						throw new Exception(
+						throw new RateLimitExceededException(
 								"Per " + entryMap.getKey().toString() + " rate Limit Exceeded for key " + key);
 					}
 				} else {
@@ -135,6 +134,6 @@ public class RateLimitService implements IRateLimitService {
 		System.out.println("Started a thread to clear " + timeunit.toString() + " map for " + key);
 		Future<Boolean> result = executor.submit(new DataCleaner(key, timeunit, memCachedService));
 		if (!result.get())
-			throw new Exception("Per " + timeunit.toString() + " ratelimit exceeded for key " + key);
+			throw new RateLimitExceededException("Per " + timeunit.toString() + " ratelimit exceeded for key " + key);
 	}
 }
