@@ -3,6 +3,7 @@
  */
 package com.phonepe.ratelimit.model;
 
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -10,7 +11,9 @@ import java.util.Map;
  * @author mayank
  *
  */
-public class RateLimit {
+public class RateLimit implements Serializable {
+
+	private static final long serialVersionUID = -5215707323537640306L;
 
 	private Limit clientLimit;
 

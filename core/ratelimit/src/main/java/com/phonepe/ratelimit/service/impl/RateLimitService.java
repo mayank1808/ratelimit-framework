@@ -3,27 +3,22 @@
  */
 package com.phonepe.ratelimit.service.impl;
 
-import java.util.HashSet;
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import javax.annotation.PostConstruct;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import com.phonepe.ratelimit.datastore.handler.DatastoreHandler;
-import com.phonepe.ratelimit.datastore.server.DatastoreServer;
-import com.phonepe.ratelimit.model.Host;
+import com.phonepe.ratelimit.cache.IMemcachedService;
 import com.phonepe.ratelimit.model.Limit;
 import com.phonepe.ratelimit.model.RateLimit;
 import com.phonepe.ratelimit.model.TimeUnit;
-import com.phonepe.ratelimit.request.DatastoreRequest;
 import com.phonepe.ratelimit.response.GenericResponse;
 import com.phonepe.ratelimit.service.IRateLimitService;
 
@@ -34,19 +29,16 @@ import com.phonepe.ratelimit.service.IRateLimitService;
 @Component
 public class RateLimitService implements IRateLimitService {
 
-	public static Set<Host> hosts = new HashSet<Host>();
-
 	private static ExecutorService executor = Executors.newFixedThreadPool(40);
+
+	public static Map<TimeUnit, Long> timeConversionMap = new EnumMap<TimeUnit, Long>(TimeUnit.class);
+
+	@Autowired
+	IMemcachedService memCachedService;
 
 	@PostConstruct
 	public void initialize() {
-		System.out.println("Initializing");
-		String[] args = {};
-		try {
-			DatastoreServer.main(args);
-		} catch (Exception e) {
-			System.out.println("oops");
-		}
+		memCachedService.flushAll();
 
 		RateLimit rateLimit = new RateLimit();
 
@@ -83,24 +75,21 @@ public class RateLimitService implements IRateLimitService {
 
 		addRateLimit(company, rateLimit);
 
-		DatastoreHandler.timeConversionMap.put(TimeUnit.SECOND, 1000L);
-		DatastoreHandler.timeConversionMap.put(TimeUnit.MINUTE, 60000L);
-		DatastoreHandler.timeConversionMap.put(TimeUnit.HOUR, 3600000L);
-		DatastoreHandler.timeConversionMap.put(TimeUnit.WEEK, 604800000L);
-		DatastoreHandler.timeConversionMap.put(TimeUnit.MONTH, 18144000000L);
-
-		if (hosts.size() == 0) {
-			hosts.add(new Host("http", "127.0.0.1", "3535"));
-		}
+		timeConversionMap.put(TimeUnit.SECOND, 1000L);
+		timeConversionMap.put(TimeUnit.MINUTE, 60000L);
+		timeConversionMap.put(TimeUnit.HOUR, 3600000L);
+		timeConversionMap.put(TimeUnit.WEEK, 604800000L);
+		timeConversionMap.put(TimeUnit.MONTH, 18144000000L);
 
 	}
 
 	public void addRateLimit(String company, RateLimit rateLimit) {
 
 		Limit limit = rateLimit.getClientLimit();
+
 		if (limit != null && limit.getDurationMap() != null) {
 			for (Entry<TimeUnit, Integer> timeUnit : limit.getDurationMap().entrySet()) {
-				DatastoreHandler.timeUnitMap.put(company + "_" + timeUnit.getKey().toString(),
+				memCachedService.addOrPut(company + "_" + timeUnit.getKey().toString(),
 						new LinkedBlockingQueue<Long>(timeUnit.getValue()));
 			}
 		}
@@ -109,21 +98,89 @@ public class RateLimitService implements IRateLimitService {
 			for (Entry<String, Limit> limitMap : rateLimit.getLimits().entrySet()) {
 				if (limitMap.getValue().getDurationMap() != null) {
 					for (Entry<TimeUnit, Integer> limitMapUnit : limitMap.getValue().getDurationMap().entrySet()) {
-						DatastoreHandler.timeUnitMap.put(limitMap.getKey() + "_" + limitMapUnit.getKey().toString(),
+						memCachedService.addOrPut(limitMap.getKey() + "_" + limitMapUnit.getKey().toString(),
 								new LinkedBlockingQueue<Long>(limitMapUnit.getValue()));
 					}
 				}
 			}
 		}
 
-		DatastoreHandler.clientMap.put(company, rateLimit);
+		memCachedService.addOrPut(company, rateLimit);
+	}
+
+	public GenericResponse processAPICall(String company, String method, String uri) {
+
+		System.out.println("Processing call");
+
+		try {
+			RateLimit rateLimit = (RateLimit) memCachedService.get(company);
+			if (rateLimit != null) {
+				Limit limit = rateLimit.getClientLimit();
+				processClientLimit(company, limit);
+			}
+			Map<String, Limit> limitMap = rateLimit.getLimits();
+			if (limitMap != null) {
+				if (limitMap.containsKey(company + "_" + method)) {
+					processClientLimit(company + "_" + method, limitMap.get(company + "_" + method));
+				}
+				if (limitMap.containsKey(company + "_" + uri)) {
+					processClientLimit(company + "_" + uri, limitMap.get(company + "_" + uri));
+				}
+			}
+		} catch (Exception e) {
+			return new GenericResponse("429", e.getMessage());
+		}
+		return new GenericResponse("200", "Passed");
+	}
+
+	@SuppressWarnings("unchecked")
+	private void processClientLimit(String key, Limit limit) throws Exception {
+		System.out.println("Processing client limit " + key + " and " + limit.toString());
+		if (limit != null) {
+			for (Entry<TimeUnit, Integer> entryMap : limit.getDurationMap().entrySet()) {
+
+				LinkedBlockingQueue<Long> queue = (LinkedBlockingQueue<Long>) memCachedService
+						.get(key + "_" + entryMap.getKey().toString());
+
+				if (entryMap.getValue() < queue.size()) {
+					if (System.currentTimeMillis() - timeConversionMap.get(entryMap.getKey()) > queue.peek()) {
+						removeOldEntries(key, entryMap.getKey());
+					} else {
+						System.out
+								.println("Per " + entryMap.getKey().toString() + " rate Limit Exceeded for key " + key);
+						throw new Exception(
+								"Per " + entryMap.getKey().toString() + " rate Limit Exceeded for key " + key);
+					}
+				} else {
+					try {
+						queue.add(System.currentTimeMillis());
+						memCachedService.replace(key + "_" + entryMap.getKey().toString(), queue);
+
+					} catch (Exception e) {
+						removeOldEntries(key, entryMap.getKey());
+					}
+				}
+			}
+		}
 
 	}
 
-	public GenericResponse processAPICall(String company, String method, String uri)
-			throws InterruptedException, ExecutionException {
-		Callable<GenericResponse> callable = new DatastoreRequest(company, method, uri, hosts);
-		Future<GenericResponse> future = executor.submit(callable);
-		return future.get();
+	@SuppressWarnings("unchecked")
+	private void removeOldEntries(String key, TimeUnit timeunit) throws Exception {
+
+		System.out.println("Started a thread to clear " + timeunit.toString() + " map for " + key);
+		LinkedBlockingQueue<Long> queue = (LinkedBlockingQueue<Long>) memCachedService
+				.get(key + "_" + timeunit.toString());
+		boolean flag = false;
+		while (!queue.isEmpty() && queue.peek() < System.currentTimeMillis() - timeConversionMap.get(timeunit)) {
+			flag = true;
+			queue.remove();
+		}
+		if (!flag)
+			throw new Exception("Per " + timeunit.toString() + " rate Limit Exceeded for key " + key);
+		else {
+			queue.add(System.currentTimeMillis());
+			memCachedService.replace(key + "_" + timeunit.toString(), queue);
+		}
 	}
 }

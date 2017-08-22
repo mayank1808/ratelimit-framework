@@ -3,12 +3,15 @@
  */
 package com.phonepe.ratelimit.model;
 
+import java.io.Serializable;
+
 /**
  * @author mayank
  *
  */
-public class MethodLimit {
+public class MethodLimit implements Serializable {
 
+	private static final long serialVersionUID = -2350822971548157209L;
 	private Method method;
 	private Limit limit;
 
