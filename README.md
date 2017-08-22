@@ -1,10 +1,6 @@
 # Ratelimit-framework
 A  framework that can throttle client requests in distributed system.
-
-- Build ratelimit module.
-- Import it in project where you want ratelimiting.
-- Make sure the configuration classes are in your component scan.
-
+Ratelimiting can be applied across method, apis for a particular company.
 This framework uses centralized Memcached to keep track of API hits.
 
 # Steps to Use
