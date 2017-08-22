@@ -81,6 +81,8 @@ public class RateLimitService implements IRateLimitService {
 		timeConversionMap.put(TimeUnit.WEEK, 604800000L);
 		timeConversionMap.put(TimeUnit.MONTH, 18144000000L);
 
+		memCachedService.setMemCachedClient(new String[] { "127.0.0.1:11211" });
+
 	}
 
 	public void addRateLimit(String company, RateLimit rateLimit) {

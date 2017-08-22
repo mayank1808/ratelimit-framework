@@ -20,4 +20,6 @@ public interface IMemcachedService {
 	public boolean flushAll();
 	
 	public boolean addOrPut(String key, Object ob);
+	
+	public void setMemCachedClient(String[] servers);
 }

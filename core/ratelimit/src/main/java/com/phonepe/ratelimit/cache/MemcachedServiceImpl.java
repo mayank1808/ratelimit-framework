@@ -3,7 +3,6 @@
  */
 package com.phonepe.ratelimit.cache;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.whalin.MemCached.MemCachedClient;
@@ -18,9 +17,7 @@ public class MemcachedServiceImpl implements IMemcachedService {
 
 	private MemCachedClient mcc;
 
-	@Autowired
-	public void setMemCachedClient() {
-		String[] servers = { "localhost:11211" };
+	public void setMemCachedClient(String[] servers) {
 		SockIOPool pool = SockIOPool.getInstance("rateLimitPool");
 		pool.setServers(servers);
 		pool.setFailover(true);
