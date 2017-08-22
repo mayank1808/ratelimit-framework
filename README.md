@@ -6,12 +6,16 @@ This framework uses centralized Memcached to keep track of API hits.
 # Steps to Use
 
 1. Import module ratelimit in your project.
-    
-    <dependency>
-			<artifactId>ratelimit</artifactId>
-			<groupId>com.phonepe</groupId>
-			<version>0.0.1-SNAPSHOT</version>
-		</dependency>
+
+```
+
+<dependency>
+	<artifactId>ratelimit</artifactId>
+	<groupId>com.phonepe</groupId>
+	<version>0.0.1-SNAPSHOT</version>
+</dependency>
+
+```
     
 2. Ensure the package com.phonepe is in your component scan path
 
