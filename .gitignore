@@ -6,5 +6,6 @@ target/
 .classpath
 .war
 classes/
+bin/
 .metadata/
 .gitignore~
